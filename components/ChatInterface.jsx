@@ -2,49 +2,54 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { gsap } from 'gsap'
-import { ArrowUp, Download, Paperclip, X } from 'lucide-react'
+import { ArrowUp, Download, Paperclip } from 'lucide-react'
 import SetupPanels from './SetupPanels'
 
-const AGENT_LABEL = 'BI REQUIREMENTS & WIREFRAME AGENT'
-
-// ─── Helpers ────────────────────────────────────────────────────────────────
+const AGENT_LABEL = 'BI Wireframe Agent'
 
 function ts() {
   return new Date().toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false })
 }
 
 function formatMarkdown(text) {
-  // Very light markdown: bold **x**, inline code `x`, newlines
   return text
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/`([^`]+)`/g, '<code class="bg-ink/10 px-1 rounded text-[0.8em]">$1</code>')
+    .replace(/`([^`]+)`/g, '<code class="bg-ink/10 px-1 rounded text-[0.85em]">$1</code>')
     .replace(/\n/g, '<br />')
 }
 
-// ─── Sub-components ──────────────────────────────────────────────────────────
+// ─── Messages ────────────────────────────────────────────────────────────────
 
 function AgentMessage({ msg }) {
   const ref = useRef(null)
   useEffect(() => {
-    gsap.from(ref.current, { x: -16, opacity: 0, duration: 0.45, ease: 'power3.out' })
+    gsap.from(ref.current, { x: -10, opacity: 0, duration: 0.4, ease: 'power3.out' })
   }, [])
 
+  const u     = msg.usage
+  const hasU  = u && u.input > 0
+  const hit   = hasU && u.cacheRead > 0 ? Math.round(u.cacheRead / u.input * 100) : 0
+  const fmtT  = (n) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n)
+
   return (
-    <div ref={ref} className="flex flex-col gap-0 max-w-[78%] self-start">
-      <div className="flex items-center gap-2 px-1 mb-1">
-        <span className="w-1.5 h-1.5 rounded-full bg-red flex-shrink-0" />
-        <span className="font-mono text-[10px] tracking-widest text-muted uppercase">Agent</span>
-        <span className="font-mono text-[10px] text-muted/60 ml-auto">{msg.time}</span>
-      </div>
-      <div className="relative border border-ink/20 bg-offwhite rounded-2xl rounded-tl-sm overflow-hidden">
-        <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-red" />
+    <div ref={ref} className="flex gap-3">
+      <div className="flex-shrink-0 w-5 h-5 rounded-full bg-red mt-0.5" />
+      <div className="flex-1 min-w-0">
         <div
-          className="font-mono text-[13px] leading-relaxed text-ink px-5 py-4"
+          className="font-mono text-[13px] leading-relaxed text-ink"
           dangerouslySetInnerHTML={{ __html: formatMarkdown(msg.text) }}
         />
         {msg.streaming && (
-          <span className="inline-block w-2 h-4 bg-red animate-pulse ml-0.5 align-middle" />
+          <span className="inline-block w-1.5 h-3.5 bg-red animate-pulse ml-0.5 align-middle" />
         )}
+        <div className="flex items-center gap-2 mt-1.5">
+          <p className="font-mono text-[9px] text-muted">{msg.time}</p>
+          {hasU && (
+            <p className="font-mono text-[9px] text-muted/60">
+              {fmtT(u.input)}↓ {fmtT(u.output)}↑{hit > 0 ? ` · ${hit}% cached` : ''}
+            </p>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -54,31 +59,29 @@ function UserMessage({ msg }) {
   const ref = useRef(null)
   const [expanded, setExpanded] = useState(false)
   useEffect(() => {
-    gsap.from(ref.current, { x: 16, opacity: 0, duration: 0.35, ease: 'power3.out' })
+    gsap.from(ref.current, { x: 10, opacity: 0, duration: 0.3, ease: 'power3.out' })
   }, [])
 
   const isStructured = msg.text.startsWith("I'm providing my data model")
-  const displayText  = isStructured && !expanded
-    ? '[ Schema + context submitted ]'
-    : msg.text
 
   return (
-    <div ref={ref} className="flex flex-col gap-0 max-w-[68%] self-end items-end">
-      <div className="flex items-center gap-2 px-1 mb-1">
-        <span className="font-mono text-[10px] text-muted/60">{msg.time}</span>
-        <span className="font-mono text-[10px] tracking-widest text-muted uppercase">You</span>
-      </div>
-      <div
-        className={`bg-ink rounded-2xl rounded-tr-sm px-5 py-4 ${isStructured ? 'cursor-pointer' : ''}`}
-        onClick={() => isStructured && setExpanded((v) => !v)}
-        title={isStructured ? (expanded ? 'Click to collapse' : 'Click to expand') : undefined}
-      >
-        <p className="font-mono text-[13px] leading-relaxed text-paper whitespace-pre-wrap">
-          {isStructured && !expanded
-            ? <span className="text-red/80">[ Schema + context submitted ]<br/><span className="text-paper/40 text-[10px]">click to expand</span></span>
-            : displayText
-          }
-        </p>
+    <div ref={ref} className="flex justify-end">
+      <div className="max-w-[75%]">
+        <div
+          className={`bg-ink text-paper rounded-2xl rounded-tr-sm px-4 py-3 ${isStructured ? 'cursor-pointer' : ''}`}
+          onClick={() => isStructured && setExpanded((v) => !v)}
+        >
+          <p className="font-mono text-[12px] leading-relaxed whitespace-pre-wrap">
+            {isStructured && !expanded
+              ? <span>
+                  <span className="text-red/95">[ Schema + context ]</span>
+                  <br />
+                  <span className="text-paper/55 text-[10px]">tap to expand</span>
+                </span>
+              : msg.text}
+          </p>
+        </div>
+        <p className="font-mono text-[9px] text-muted mt-1 text-right">{msg.time}</p>
       </div>
     </div>
   )
@@ -87,118 +90,267 @@ function UserMessage({ msg }) {
 function ThinkingBubble({ hint }) {
   const ref = useRef(null)
   useEffect(() => {
-    gsap.from(ref.current, { x: -16, opacity: 0, duration: 0.35, ease: 'power3.out' })
+    gsap.from(ref.current, { x: -10, opacity: 0, duration: 0.3, ease: 'power3.out' })
   }, [])
 
   return (
-    <div ref={ref} className="flex flex-col gap-0 max-w-[78%] self-start">
-      <div className="flex items-center gap-2 px-1 mb-1">
-        <span className="w-1.5 h-1.5 rounded-full bg-red animate-ping" />
+    <div ref={ref} className="flex gap-3">
+      <div className="flex-shrink-0 w-5 h-5 rounded-full bg-red/30 mt-0.5 animate-pulse" />
+      <div className="flex items-center gap-2 py-0.5">
         <span className="font-mono text-[10px] tracking-widest text-muted uppercase">
-          {hint === 'tool' ? 'Using tool…' : 'Thinking…'}
+          {hint === 'tool' ? 'Using tool' : 'Thinking'}
         </span>
-      </div>
-      <div className="relative border border-ink/20 bg-offwhite rounded-2xl rounded-tl-sm overflow-hidden">
-        <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-red/40" />
-        <div className="flex items-center gap-2 px-5 py-4">
-          {[0, 1, 2].map((i) => (
-            <span
-              key={i}
-              className="w-1.5 h-1.5 rounded-full bg-red/60"
-              style={{ animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite` }}
-            />
-          ))}
-        </div>
+        {[0, 1, 2].map((i) => (
+          <span
+            key={i}
+            className="w-1 h-1 rounded-full bg-red/50"
+            style={{ animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite` }}
+          />
+        ))}
       </div>
     </div>
   )
 }
 
-function FilesPanel({ files, onClose }) {
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function downloadBlob(name, content) {
+  const ext  = name.split('.').pop().toLowerCase()
+  const mime = { html: 'text/html', md: 'text/markdown', txt: 'text/plain', json: 'application/json' }[ext] ?? 'text/plain'
+  const blob = new Blob([content], { type: mime + ';charset=utf-8' })
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a')
+  a.href = url; a.download = name; a.click()
+  URL.revokeObjectURL(url)
+}
+
+// ─── Sidebar ─────────────────────────────────────────────────────────────────
+
+function fmtTok(n) { return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n) }
+
+function Sidebar({ isIdle, agentStatus, hasMessages, lastTurnUsage }) {
   const ref = useRef(null)
+  const [sessionFiles, setSessionFiles]   = useState([])
+  const [fetching, setFetching]           = useState(false)
+  const [fetched, setFetched]             = useState(false)
+  const [sessionUsage, setSessionUsage]   = useState(null)
+  const [usageFetched, setUsageFetched]   = useState(false)
+
   useEffect(() => {
-    gsap.from(ref.current, { y: 20, opacity: 0, duration: 0.4, ease: 'power3.out' })
+    gsap.from(ref.current, { x: -16, opacity: 0, duration: 0.55, ease: 'power3.out' })
   }, [])
 
+  const fetchSessionFiles = useCallback(async () => {
+    setFetching(true)
+    try {
+      const res  = await fetch('/api/session-files')
+      const data = await res.json()
+      setSessionFiles(data.files ?? [])
+      setFetched(true)
+    } catch {}
+    setFetching(false)
+  }, [])
+
+  const fetchUsage = useCallback(async () => {
+    try {
+      const res  = await fetch('/api/session-usage')
+      const data = await res.json()
+      if (data.usage) setSessionUsage(data.usage)
+      setUsageFetched(true)
+    } catch {}
+  }, [])
+
+  useEffect(() => {
+    if (isIdle && hasMessages && !fetched) fetchSessionFiles()
+  }, [isIdle, hasMessages, fetched, fetchSessionFiles])
+
+  // Refresh cumulative usage whenever agent goes idle
+  useEffect(() => {
+    if (isIdle && hasMessages) fetchUsage()
+  }, [isIdle, hasMessages, fetchUsage])
+
+  const sessIn    = sessionUsage?.input_tokens ?? 0
+  const sessOut   = sessionUsage?.output_tokens ?? 0
+  const sessCacheR = sessionUsage?.cache_read_input_tokens ?? 0
+  const sessCacheW = (sessionUsage?.cache_creation?.ephemeral_5m_input_tokens ?? 0) +
+                     (sessionUsage?.cache_creation?.ephemeral_1h_input_tokens  ?? 0)
+  const sessHit   = sessIn > 0 ? Math.round(sessCacheR / sessIn * 100) : 0
+
+  const ltIn      = lastTurnUsage?.input ?? 0
+  const ltOut     = lastTurnUsage?.output ?? 0
+  const ltCacheR  = lastTurnUsage?.cacheRead ?? 0
+  const ltHit     = ltIn > 0 ? Math.round(ltCacheR / ltIn * 100) : 0
+
   return (
-    <div
-      ref={ref}
-      className="absolute bottom-full right-0 mb-2 w-72 bg-offwhite border border-ink/20 rounded-2xl shadow-xl overflow-hidden"
-    >
-      <div className="flex items-center justify-between px-4 py-3 border-b border-ink/10">
-        <div className="flex items-center gap-2">
-          <Paperclip size={13} className="text-red" />
-          <span className="font-mono text-[11px] tracking-widest uppercase text-ink">Files</span>
+    <aside ref={ref} className="w-52 flex-shrink-0 flex flex-col bg-offwhite border-r border-ink/10">
+
+      {/* Agent info */}
+      <div className="px-4 pt-5 pb-4 border-b border-ink/10">
+        <div className="flex items-start gap-2.5">
+          <span className="relative flex h-2 w-2 flex-shrink-0 mt-1">
+            {!isIdle && (
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red opacity-75" />
+            )}
+            <span className={`relative inline-flex rounded-full h-2 w-2 ${isIdle ? 'bg-ink/20' : 'bg-red'}`} />
+          </span>
+          <div>
+            <p className="font-mono text-[8px] tracking-[0.18em] uppercase text-muted leading-none mb-1">
+              {isIdle ? 'Ready' : agentStatus === 'thinking' ? 'Thinking…' : 'Responding…'}
+            </p>
+            <p className="font-grotesk font-bold text-[12px] text-ink leading-tight">{AGENT_LABEL}</p>
+          </div>
         </div>
-        <button onClick={onClose} className="text-muted hover:text-ink transition-colors">
-          <X size={14} />
-        </button>
       </div>
-      {files.length === 0 ? (
-        <p className="font-mono text-[11px] text-muted px-4 py-4">No files yet.</p>
-      ) : (
-        <ul className="divide-y divide-ink/10 max-h-64 overflow-y-auto">
-          {files.map((f) => (
-            <li key={f.id} className="flex items-center justify-between px-4 py-3 hover:bg-surface/60 transition-colors">
-              <span className="font-mono text-[11px] text-ink truncate pr-2">{f.filename ?? f.id}</span>
-              <a
-                href={`/api/files/${f.id}/download`}
-                download
-                className="flex-shrink-0 text-red hover:text-ink transition-colors"
+
+      {/* Output files */}
+      <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-5">
+
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-1.5">
+              <Paperclip size={9} className="text-muted" />
+              <span className="font-mono text-[8px] tracking-[0.15em] uppercase text-muted">Output Files</span>
+              {sessionFiles.length > 0 && (
+                <span className="bg-red text-paper text-[8px] rounded-full w-3.5 h-3.5 flex items-center justify-center font-bold ml-0.5">
+                  {sessionFiles.length}
+                </span>
+              )}
+            </div>
+            {hasMessages && (
+              <button
+                onClick={fetchSessionFiles}
+                disabled={fetching}
+                className="font-mono text-[8px] tracking-wider uppercase text-muted/70 hover:text-red transition-colors disabled:opacity-40"
               >
-                <Download size={13} />
-              </a>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+                {fetching ? '…' : fetched ? 'Refresh' : 'Fetch'}
+              </button>
+            )}
+          </div>
+
+          {!hasMessages ? (
+            <p className="font-mono text-[10px] text-muted leading-relaxed">Files appear here after the agent runs.</p>
+          ) : !fetched ? (
+            <p className="font-mono text-[10px] text-muted leading-relaxed">
+              {fetching ? 'Loading…' : 'Click Fetch to load output files.'}
+            </p>
+          ) : sessionFiles.length === 0 ? (
+            <p className="font-mono text-[10px] text-muted leading-relaxed">No output files found.</p>
+          ) : (
+            <ul className="flex flex-col gap-0.5">
+              {sessionFiles.map((f) => (
+                <li
+                  key={f.name}
+                  className="flex items-center justify-between gap-2 px-2 py-2 rounded-lg hover:bg-surface/70 transition-colors group"
+                >
+                  <span className="font-mono text-[10px] text-ink truncate flex-1">{f.name}</span>
+                  <button
+                    onClick={() => downloadBlob(f.name, f.content)}
+                    className="flex-shrink-0 text-muted/85 group-hover:text-red transition-colors"
+                    title={`Download ${f.name}`}
+                  >
+                    <Download size={11} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* Token usage */}
+        <div>
+          <div className="flex items-center justify-between mb-2.5">
+            <span className="font-mono text-[8px] tracking-[0.15em] uppercase text-muted">Token Usage</span>
+            {hasMessages && usageFetched && (
+              <button
+                onClick={fetchUsage}
+                className="font-mono text-[8px] tracking-wider uppercase text-muted/70 hover:text-red transition-colors"
+              >
+                Refresh
+              </button>
+            )}
+          </div>
+
+          {!hasMessages && (
+            <p className="font-mono text-[10px] text-muted leading-relaxed">Stats appear after first run.</p>
+          )}
+
+          {lastTurnUsage && ltIn > 0 && (
+            <div className="mb-3">
+              <p className="font-mono text-[8px] text-muted/70 uppercase tracking-wider mb-1">Last turn</p>
+              <p className="font-mono text-[10px] text-ink">
+                {fmtTok(ltIn)} in · {fmtTok(ltOut)} out
+              </p>
+              {ltCacheR > 0 && (
+                <p className="font-mono text-[9px] text-muted">{ltHit}% cached</p>
+              )}
+            </div>
+          )}
+
+          {sessIn > 0 && (
+            <div>
+              <p className="font-mono text-[8px] text-muted/70 uppercase tracking-wider mb-1">Session total</p>
+              <p className="font-mono text-[10px] text-ink">
+                {fmtTok(sessIn)} in · {fmtTok(sessOut)} out
+              </p>
+              {sessCacheR > 0 && (
+                <p className="font-mono text-[9px] text-muted">{sessHit}% cached</p>
+              )}
+              {sessCacheW > 0 && (
+                <p className="font-mono text-[9px] text-muted">{fmtTok(sessCacheW)} written to cache</p>
+              )}
+            </div>
+          )}
+        </div>
+
+      </div>
+
+    </aside>
   )
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function ChatInterface() {
-  const [messages, setMessages]   = useState([])
-  const [input, setInput]         = useState('')
-  const [agentStatus, setAgentStatus] = useState('idle') // idle | thinking | streaming
-  const [thinkHint, setThinkHint] = useState('thinking')
-  const [files, setFiles]         = useState([])
-  const [filesOpen, setFilesOpen] = useState(false)
+  const [messages, setMessages]       = useState([])
+  const [input, setInput]             = useState('')
+  const [agentStatus, setAgentStatus] = useState('idle')
+  const [thinkHint, setThinkHint]     = useState('thinking')
+  const [schema, setSchema]               = useState('')
+  const [context, setContext]             = useState('')
+  const [attachedFiles, setAttachedFiles] = useState([])
+  const [historyLoading, setHistoryLoading] = useState(true)
+  const [lastTurnUsage, setLastTurnUsage] = useState(null)
 
   const bottomRef    = useRef(null)
-  const headerRef    = useRef(null)
   const bodyRef      = useRef(null)
   const inputAreaRef = useRef(null)
   const textareaRef  = useRef(null)
+  const turnUsageAccum = useRef({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0 })
 
-  // Entrance animations
+  // Load conversation history from session events on mount
+  useEffect(() => {
+    fetch('/api/session-history')
+      .then(r => r.json())
+      .then(data => {
+        if (data.messages?.length) setMessages(data.messages)
+      })
+      .catch(() => {})
+      .finally(() => setHistoryLoading(false))
+  }, [])
+
   useEffect(() => {
     const ctx = gsap.context(() => {
-      gsap.from(headerRef.current, { y: -24, opacity: 0, duration: 0.7, ease: 'power3.out' })
-      gsap.from(bodyRef.current,   { opacity: 0, duration: 0.6, ease: 'power2.out', delay: 0.2 })
-      gsap.from(inputAreaRef.current, { y: 20, opacity: 0, duration: 0.6, ease: 'power3.out', delay: 0.35 })
+      gsap.from(bodyRef.current,      { opacity: 0, duration: 0.5, ease: 'power2.out', delay: 0.15 })
+      gsap.from(inputAreaRef.current, { y: 14, opacity: 0, duration: 0.5, ease: 'power3.out', delay: 0.3 })
     })
     return () => ctx.revert()
   }, [])
 
-  // Auto-scroll
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, agentStatus])
 
-  // Fetch files
-  const fetchFiles = useCallback(async () => {
-    try {
-      const res  = await fetch('/api/files')
-      const data = await res.json()
-      setFiles(data.files ?? [])
-    } catch {}
-  }, [])
 
-  useEffect(() => { fetchFiles() }, [fetchFiles])
-
-  // Auto-resize textarea
   const resizeTextarea = useCallback(() => {
     const el = textareaRef.current
     if (!el) return
@@ -206,17 +358,41 @@ export default function ChatInterface() {
     el.style.height = Math.min(el.scrollHeight, 140) + 'px'
   }, [])
 
-  // Send message
-  const sendMessage = useCallback(async (override) => {
-    const text = (typeof override === 'string' ? override : input).trim()
-    if (!text || agentStatus !== 'idle') return
+  const sendMessage = useCallback(async () => {
+    if (agentStatus !== 'idle') return
 
-    if (typeof override !== 'string') {
-      setInput('')
-      if (textareaRef.current) textareaRef.current.style.height = 'auto'
+    const isSetup = messages.length === 0
+    let text
+
+    if (isSetup) {
+      const hasAny = schema.trim() || context.trim() || attachedFiles.length > 0 || input.trim()
+      if (!hasAny) return
+
+      const parts = ["I'm providing my data model and business context for dashboard planning.\n"]
+      if (schema.trim())
+        parts.push(`## DATA MODEL SCHEMA\n\`\`\`\n${schema.trim()}\n\`\`\``)
+      if (context.trim())
+        parts.push(`## BUSINESS CONTEXT\n${context.trim()}`)
+      for (const f of attachedFiles) {
+        if (f.binary || f.readError) {
+          parts.push(`## ATTACHED FILE: ${f.name}\n(Binary — content not extracted.)`)
+        } else if (f.content) {
+          parts.push(`## ATTACHED FILE: ${f.name}\n\`\`\`\n${f.content.slice(0, 40000)}\n\`\`\``)
+        }
+      }
+      if (input.trim()) parts.push(`## ADDITIONAL NOTES\n${input.trim()}`)
+      text = parts.join('\n\n')
+    } else {
+      text = input.trim()
+      if (!text) return
     }
+
+    setInput('')
+    if (textareaRef.current) textareaRef.current.style.height = 'auto'
+    if (isSetup) { setSchema(''); setContext(''); setAttachedFiles([]) }
     setAgentStatus('thinking')
     setThinkHint('thinking')
+    turnUsageAccum.current = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
 
     const userMsg  = { role: 'user',  text, time: ts(), id: Date.now() }
     const agentId  = Date.now() + 1
@@ -249,21 +425,27 @@ export default function ChatInterface() {
           try { data = JSON.parse(part.slice(6)) } catch { continue }
 
           if (data.type === 'thinking') {
-            setAgentStatus('thinking')
-            setThinkHint('thinking')
+            setAgentStatus('thinking'); setThinkHint('thinking')
           } else if (data.type === 'tool') {
             setThinkHint('tool')
+          } else if (data.type === 'usage') {
+            const a = turnUsageAccum.current
+            a.input    += data.input    ?? 0
+            a.output   += data.output   ?? 0
+            a.cacheRead  += data.cacheRead  ?? 0
+            a.cacheWrite += data.cacheWrite ?? 0
           } else if (data.type === 'message') {
             setAgentStatus('streaming')
             setMessages((prev) =>
               prev.map((m) => (m.id === agentId ? { ...m, text: data.text } : m))
             )
           } else if (data.type === 'done') {
+            const finalUsage = { ...turnUsageAccum.current }
+            setLastTurnUsage(finalUsage)
             setMessages((prev) =>
-              prev.map((m) => (m.id === agentId ? { ...m, streaming: false } : m))
+              prev.map((m) => (m.id === agentId ? { ...m, streaming: false, usage: finalUsage } : m))
             )
             setAgentStatus('idle')
-            fetchFiles()
           } else if (data.type === 'error') {
             setMessages((prev) =>
               prev.map((m) =>
@@ -286,117 +468,92 @@ export default function ChatInterface() {
       )
       setAgentStatus('idle')
     }
-  }, [input, agentStatus, fetchFiles])
+  }, [input, agentStatus, schema, context, attachedFiles, messages])
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      sendMessage()
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
   }
 
-  const isIdle = agentStatus === 'idle'
+  const isIdle     = agentStatus === 'idle'
+  const isSetup    = messages.length === 0
+  const hasContent = isSetup
+    ? Boolean(schema.trim() || context.trim() || attachedFiles.length > 0 || input.trim())
+    : Boolean(input.trim())
+
   const showThinking = (agentStatus === 'thinking' || thinkHint === 'tool') &&
     messages[messages.length - 1]?.role !== 'agent'
 
   return (
-    <div className="flex flex-col h-screen bg-paper font-grotesk overflow-hidden">
+    <div className="flex h-screen bg-paper font-grotesk overflow-hidden">
 
-      {/* ── HEADER ─────────────────────────────────────────────────────── */}
-      <header ref={headerRef} className="flex-shrink-0 border-b-2 border-ink px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          {/* Status dot */}
-          <span className="relative flex h-2.5 w-2.5">
-            {!isIdle && (
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red opacity-75" />
+      <Sidebar isIdle={isIdle} agentStatus={agentStatus} hasMessages={messages.length > 0} lastTurnUsage={lastTurnUsage} />
+
+      {/* ── MAIN ─────────────────────────────────────────────────────── */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+
+        {/* Messages */}
+        <div ref={bodyRef} className="flex-1 overflow-y-auto">
+          <div className="max-w-2xl mx-auto px-6 py-8">
+
+            {historyLoading ? (
+              <p className="font-mono text-[10px] text-muted/60 tracking-widest uppercase">Loading history…</p>
+            ) : isSetup && (
+              <div className="mb-5">
+                <p className="font-mono text-[9px] tracking-[0.18em] uppercase text-muted mb-3">
+                  Share your data model to begin
+                </p>
+                <SetupPanels
+                  schema={schema}
+                  onSchemaChange={setSchema}
+                  context={context}
+                  onContextChange={setContext}
+                  files={attachedFiles}
+                  onFilesChange={setAttachedFiles}
+                />
+              </div>
             )}
-            <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${isIdle ? 'bg-ink/30' : 'bg-red'}`} />
-          </span>
 
-          <div>
-            <p className="font-mono text-[10px] tracking-[0.2em] uppercase text-muted leading-none mb-0.5">
-              {isIdle ? 'IDLE' : agentStatus === 'thinking' ? 'THINKING' : 'RESPONDING'}
-            </p>
-            <h1 className="font-grotesk font-bold text-[13px] tracking-tight text-ink leading-none">
-              {AGENT_LABEL}
-            </h1>
-          </div>
-        </div>
-
-        {/* Files button */}
-        <div className="relative">
-          <button
-            onClick={() => setFilesOpen((v) => !v)}
-            className="flex items-center gap-1.5 font-mono text-[11px] tracking-widest uppercase border border-ink/20 rounded-full px-3 py-1.5 text-ink hover:bg-ink hover:text-paper transition-all duration-200 btn-magnetic"
-          >
-            <Paperclip size={11} />
-            Files
-            {files.length > 0 && (
-              <span className="bg-red text-paper text-[9px] rounded-full w-4 h-4 flex items-center justify-center font-bold">
-                {files.length}
-              </span>
-            )}
-          </button>
-          {filesOpen && <FilesPanel files={files} onClose={() => setFilesOpen(false)} />}
-        </div>
-      </header>
-
-      {/* ── MESSAGES ───────────────────────────────────────────────────── */}
-      <div ref={bodyRef} className="flex-1 overflow-y-auto px-6 py-6">
-        {messages.length === 0 && (
-          <div className="flex flex-col items-start justify-start pt-2 pb-4">
-            <div className="mb-5 select-none">
-              <p className="font-serif italic text-3xl text-ink/15 leading-tight">Ready.</p>
-              <p className="font-mono text-[10px] tracking-widest uppercase text-muted/50 mt-1">
-                Provide your data model and context below — the agent will produce a requirements spec and wireframe.
-              </p>
+            <div className="flex flex-col gap-5">
+              {messages.map((msg) =>
+                msg.role === 'user'
+                  ? <UserMessage  key={msg.id} msg={msg} />
+                  : <AgentMessage key={msg.id} msg={msg} />
+              )}
+              {showThinking && <ThinkingBubble hint={thinkHint} />}
             </div>
-            <SetupPanels onSubmit={sendMessage} disabled={agentStatus !== 'idle'} />
+
+            <div ref={bottomRef} />
           </div>
-        )}
-
-        <div className="flex flex-col gap-5">
-          {messages.map((msg) =>
-            msg.role === 'user'
-              ? <UserMessage  key={msg.id} msg={msg} />
-              : <AgentMessage key={msg.id} msg={msg} />
-          )}
-
-          {(agentStatus === 'thinking' || agentStatus === 'streaming') &&
-            messages[messages.length - 1]?.role === 'user' && (
-              <ThinkingBubble hint={thinkHint} />
-            )}
         </div>
 
-        <div ref={bottomRef} />
-      </div>
-
-      {/* ── INPUT ──────────────────────────────────────────────────────── */}
-      <div ref={inputAreaRef} className="flex-shrink-0 border-t-2 border-ink bg-paper px-6 py-4">
-        <div className="flex items-end gap-3">
-          <textarea
-            ref={textareaRef}
-            rows={1}
-            value={input}
-            onChange={(e) => { setInput(e.target.value); resizeTextarea() }}
-            onKeyDown={handleKeyDown}
-            placeholder="Describe your schema or paste business context…"
-            disabled={!isIdle}
-            className="flex-1 resize-none bg-transparent font-mono text-[13px] text-ink placeholder:text-muted/50 outline-none leading-relaxed disabled:opacity-40 min-h-[40px] max-h-[140px] py-2"
-          />
-          <button
-            onClick={sendMessage}
-            disabled={!isIdle || !input.trim()}
-            className="flex-shrink-0 w-10 h-10 rounded-full bg-ink flex items-center justify-center text-paper disabled:opacity-30 hover:bg-red transition-all duration-200 btn-magnetic"
-          >
-            <ArrowUp size={16} />
-          </button>
+        {/* Input */}
+        <div ref={inputAreaRef} className="flex-shrink-0 px-6 pb-6">
+          <div className="max-w-2xl mx-auto">
+            <div className="border border-ink/20 rounded-2xl bg-paper shadow-sm focus-within:border-ink/50 transition-colors duration-200 overflow-hidden">
+              <textarea
+                ref={textareaRef}
+                rows={1}
+                value={input}
+                onChange={(e) => { setInput(e.target.value); resizeTextarea() }}
+                onKeyDown={handleKeyDown}
+                placeholder={isSetup ? 'Add a note (optional)…' : 'Message…'}
+                disabled={!isIdle}
+                className="w-full resize-none bg-transparent font-mono text-[13px] text-ink placeholder:text-muted/85 outline-none leading-relaxed disabled:opacity-40 min-h-[46px] max-h-[140px] px-4 pt-3.5 pb-2"
+              />
+              <div className="flex items-center justify-end px-3 pb-3">
+                <button
+                  onClick={sendMessage}
+                  disabled={!isIdle || !hasContent}
+                  className="w-8 h-8 rounded-full bg-ink flex items-center justify-center text-paper disabled:opacity-25 hover:bg-red transition-all duration-200"
+                >
+                  <ArrowUp size={14} />
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
-        <p className="font-mono text-[10px] text-muted/50 mt-2 text-right tracking-widest uppercase">
-          Enter to send · Shift+Enter for new line
-        </p>
-      </div>
 
+      </div>
     </div>
   )
 }

@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 
 const SESSION_ID = 'sesn_01VqZTqWVuuLBdayQE34m1t5'
-const BETA       = 'managed-agents-2025-05-14'
+const BETA       = 'managed-agents-2026-04-01'
 
 // Allow up to 5-minute responses for long agent runs
 export const maxDuration = 300
@@ -25,7 +25,7 @@ export async function POST(request) {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`))
 
       try {
-        const stream = client.beta.sessions.events.stream(SESSION_ID, { betas: [BETA] })
+        const stream = await client.beta.sessions.events.stream(SESSION_ID, { betas: [BETA] })
 
         for await (const event of stream) {
           const t = event.type
@@ -37,6 +37,9 @@ export async function POST(request) {
             send({ type: 'thinking' })
           } else if (t === 'agent.tool_use') {
             send({ type: 'tool', name: event.name ?? 'tool' })
+          } else if (t === 'span.model_request_end') {
+            const u = event.model_usage
+            if (u) send({ type: 'usage', input: u.input_tokens ?? 0, output: u.output_tokens ?? 0, cacheRead: u.cache_read_input_tokens ?? 0, cacheWrite: u.cache_creation_input_tokens ?? 0 })
           } else if (t === 'session.status_idle') {
             send({ type: 'done' })
             break
