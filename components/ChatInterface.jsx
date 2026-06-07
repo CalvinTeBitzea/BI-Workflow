@@ -2,10 +2,32 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { gsap } from 'gsap'
-import { ArrowUp, Download, Paperclip } from 'lucide-react'
+import { ArrowUp, Download, Paperclip, Plus } from 'lucide-react'
 import SetupPanels from './SetupPanels'
 
-const AGENT_LABEL = 'BI Wireframe Agent'
+const AGENT_LABEL        = 'BI Wireframe Agent'
+const DEFAULT_SESSION_ID = 'sesn_01VqZTqWVuuLBdayQE34m1t5'
+const STORAGE_KEY        = 'bi_agent_sessions'
+
+function loadStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (raw) return JSON.parse(raw)
+  } catch {}
+  return null
+}
+
+function saveStorage(sessions, activeId) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ sessions, activeId }))
+  } catch {}
+}
+
+function fmtDate(iso) {
+  return new Date(iso).toLocaleString('en-AU', {
+    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
+  })
+}
 
 function ts() {
   return new Date().toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false })
@@ -87,6 +109,18 @@ function UserMessage({ msg }) {
   )
 }
 
+function CompactionMarker({ msg }) {
+  return (
+    <div className="flex items-center gap-3 py-1">
+      <div className="flex-1 h-px bg-ink/10" />
+      <span className="font-mono text-[8px] tracking-[0.15em] uppercase text-muted/60 whitespace-nowrap">
+        context compacted · {msg.time}
+      </span>
+      <div className="flex-1 h-px bg-ink/10" />
+    </div>
+  )
+}
+
 function ThinkingBubble({ hint }) {
   const ref = useRef(null)
   useEffect(() => {
@@ -128,7 +162,7 @@ function downloadBlob(name, content) {
 
 function fmtTok(n) { return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n) }
 
-function Sidebar({ isIdle, agentStatus, hasMessages, lastTurnUsage }) {
+function Sidebar({ isIdle, agentStatus, hasMessages, lastTurnUsage, activeSessionId, sessions, onSwitchSession, onNewSession, creatingSession }) {
   const ref = useRef(null)
   const [sessionFiles, setSessionFiles]   = useState([])
   const [fetching, setFetching]           = useState(false)
@@ -140,31 +174,38 @@ function Sidebar({ isIdle, agentStatus, hasMessages, lastTurnUsage }) {
     gsap.from(ref.current, { x: -16, opacity: 0, duration: 0.55, ease: 'power3.out' })
   }, [])
 
+  // Reset file/usage state when active session changes
+  useEffect(() => {
+    setSessionFiles([])
+    setFetched(false)
+    setSessionUsage(null)
+    setUsageFetched(false)
+  }, [activeSessionId])
+
   const fetchSessionFiles = useCallback(async () => {
     setFetching(true)
     try {
-      const res  = await fetch('/api/session-files')
+      const res  = await fetch(`/api/session-files?sessionId=${activeSessionId}`)
       const data = await res.json()
       setSessionFiles(data.files ?? [])
       setFetched(true)
     } catch {}
     setFetching(false)
-  }, [])
+  }, [activeSessionId])
 
   const fetchUsage = useCallback(async () => {
     try {
-      const res  = await fetch('/api/session-usage')
+      const res  = await fetch(`/api/session-usage?sessionId=${activeSessionId}`)
       const data = await res.json()
       if (data.usage) setSessionUsage(data.usage)
       setUsageFetched(true)
     } catch {}
-  }, [])
+  }, [activeSessionId])
 
   useEffect(() => {
     if (isIdle && hasMessages && !fetched) fetchSessionFiles()
   }, [isIdle, hasMessages, fetched, fetchSessionFiles])
 
-  // Refresh cumulative usage whenever agent goes idle
   useEffect(() => {
     if (isIdle && hasMessages) fetchUsage()
   }, [isIdle, hasMessages, fetchUsage])
@@ -200,6 +241,45 @@ function Sidebar({ isIdle, agentStatus, hasMessages, lastTurnUsage }) {
             <p className="font-grotesk font-bold text-[12px] text-ink leading-tight">{AGENT_LABEL}</p>
           </div>
         </div>
+      </div>
+
+      {/* Conversations */}
+      <div className="px-4 py-3 border-b border-ink/10">
+        <div className="flex items-center justify-between mb-2">
+          <span className="font-mono text-[8px] tracking-[0.15em] uppercase text-muted">Conversations</span>
+          <button
+            onClick={onNewSession}
+            disabled={creatingSession || !isIdle}
+            title="New conversation"
+            className="flex items-center gap-0.5 font-mono text-[8px] tracking-wider uppercase text-muted/70 hover:text-red transition-colors disabled:opacity-30"
+          >
+            <Plus size={9} />
+            {creatingSession ? 'Creating…' : 'New'}
+          </button>
+        </div>
+        <ul className="flex flex-col gap-0.5 max-h-36 overflow-y-auto">
+          {sessions.map((s, i) => {
+            const isActive = s.id === activeSessionId
+            return (
+              <li key={s.id}>
+                <button
+                  onClick={() => onSwitchSession(s.id)}
+                  className={`w-full text-left px-2 py-1.5 rounded-md transition-colors ${
+                    isActive ? 'bg-ink/8 text-ink' : 'text-muted hover:bg-ink/5 hover:text-ink'
+                  }`}
+                >
+                  <p className="font-mono text-[10px] leading-snug truncate">
+                    {isActive && <span className="text-red mr-1">●</span>}
+                    {sessions.length - i === 1 && sessions.length > 1
+                      ? 'Original'
+                      : `Conversation ${sessions.length - i}`}
+                  </p>
+                  <p className="font-mono text-[8px] text-muted/70 mt-0.5">{fmtDate(s.createdAt)}</p>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
       </div>
 
       {/* Output files */}
@@ -320,23 +400,87 @@ export default function ChatInterface() {
   const [attachedFiles, setAttachedFiles] = useState([])
   const [historyLoading, setHistoryLoading] = useState(true)
   const [lastTurnUsage, setLastTurnUsage] = useState(null)
+  const [activeSessionId, setActiveSessionId] = useState(DEFAULT_SESSION_ID)
+  const [sessions, setSessions]             = useState([])
+  const [creatingSession, setCreatingSession] = useState(false)
 
   const bottomRef    = useRef(null)
   const bodyRef      = useRef(null)
   const inputAreaRef = useRef(null)
   const textareaRef  = useRef(null)
-  const turnUsageAccum = useRef({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0 })
+  const turnUsageAccum     = useRef({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0 })
+  const activeSessionIdRef = useRef(activeSessionId)
+  useEffect(() => { activeSessionIdRef.current = activeSessionId }, [activeSessionId])
 
-  // Load conversation history from session events on mount
-  useEffect(() => {
-    fetch('/api/session-history')
-      .then(r => r.json())
-      .then(data => {
-        if (data.messages?.length) setMessages(data.messages)
-      })
-      .catch(() => {})
-      .finally(() => setHistoryLoading(false))
+  const fetchHistory = useCallback(async (sid) => {
+    setHistoryLoading(true)
+    try {
+      const data = await fetch(`/api/session-history?sessionId=${sid}`).then(r => r.json())
+      if (data.messages?.length) setMessages(data.messages)
+      else setMessages([])
+    } catch {}
+    setHistoryLoading(false)
   }, [])
+
+  // Bootstrap from localStorage on mount
+  useEffect(() => {
+    const stored = loadStorage()
+    if (stored?.sessions?.length && stored.activeId) {
+      setSessions(stored.sessions)
+      setActiveSessionId(stored.activeId)
+      activeSessionIdRef.current = stored.activeId
+      fetchHistory(stored.activeId)
+    } else {
+      // Seed localStorage with the default session
+      const seed = [{ id: DEFAULT_SESSION_ID, createdAt: new Date().toISOString() }]
+      setSessions(seed)
+      saveStorage(seed, DEFAULT_SESSION_ID)
+      fetchHistory(DEFAULT_SESSION_ID)
+    }
+  }, [fetchHistory])
+
+  const switchSession = useCallback((sid) => {
+    if (sid === activeSessionIdRef.current) return
+    setActiveSessionId(sid)
+    setMessages([])
+    setLastTurnUsage(null)
+    setInput('')
+    setSessions(prev => {
+      const updated = prev
+      saveStorage(updated, sid)
+      return updated
+    })
+    fetchHistory(sid)
+  }, [fetchHistory])
+
+  const createNewSession = useCallback(async () => {
+    if (creatingSession) return
+    setCreatingSession(true)
+    try {
+      const res  = await fetch('/api/session/new', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ refSessionId: activeSessionIdRef.current }),
+      })
+      const data = await res.json()
+      if (!data.sessionId) throw new Error('No session ID returned')
+
+      const newEntry = { id: data.sessionId, createdAt: data.createdAt ?? new Date().toISOString() }
+      setSessions(prev => {
+        const updated = [newEntry, ...prev]
+        saveStorage(updated, data.sessionId)
+        return updated
+      })
+      setActiveSessionId(data.sessionId)
+      setMessages([])
+      setLastTurnUsage(null)
+      setInput('')
+      setHistoryLoading(false)
+    } catch (err) {
+      console.error('Failed to create session:', err)
+    }
+    setCreatingSession(false)
+  }, [creatingSession])
 
   useEffect(() => {
     const ctx = gsap.context(() => {
@@ -404,7 +548,7 @@ export default function ChatInterface() {
       const res = await fetch('/api/chat', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ message: text }),
+        body:    JSON.stringify({ message: text, sessionId: activeSessionIdRef.current }),
       })
 
       const reader  = res.body.getReader()
@@ -486,7 +630,17 @@ export default function ChatInterface() {
   return (
     <div className="flex h-screen bg-paper font-grotesk overflow-hidden">
 
-      <Sidebar isIdle={isIdle} agentStatus={agentStatus} hasMessages={messages.length > 0} lastTurnUsage={lastTurnUsage} />
+      <Sidebar
+        isIdle={isIdle}
+        agentStatus={agentStatus}
+        hasMessages={messages.length > 0}
+        lastTurnUsage={lastTurnUsage}
+        activeSessionId={activeSessionId}
+        sessions={sessions}
+        onSwitchSession={switchSession}
+        onNewSession={createNewSession}
+        creatingSession={creatingSession}
+      />
 
       {/* ── MAIN ─────────────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -515,9 +669,9 @@ export default function ChatInterface() {
 
             <div className="flex flex-col gap-5">
               {messages.map((msg) =>
-                msg.role === 'user'
-                  ? <UserMessage  key={msg.id} msg={msg} />
-                  : <AgentMessage key={msg.id} msg={msg} />
+                msg.role === 'user'      ? <UserMessage       key={msg.id} msg={msg} /> :
+                msg.role === 'compacted' ? <CompactionMarker  key={msg.id} msg={msg} /> :
+                                           <AgentMessage      key={msg.id} msg={msg} />
               )}
               {showThinking && <ThinkingBubble hint={thinkHint} />}
             </div>

@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 
-const SESSION_ID = 'sesn_01VqZTqWVuuLBdayQE34m1t5'
-const BETA       = 'managed-agents-2026-04-01'
+const DEFAULT_SESSION_ID = 'sesn_01VqZTqWVuuLBdayQE34m1t5'
+const BETA               = 'managed-agents-2026-04-01'
 
 function fmt(isoStr) {
   return new Date(isoStr).toLocaleTimeString('en-AU', {
@@ -9,7 +9,9 @@ function fmt(isoStr) {
   })
 }
 
-export async function GET() {
+export async function GET(request) {
+  const { searchParams } = new URL(request.url)
+  const SESSION_ID = searchParams.get('sessionId') || DEFAULT_SESSION_ID
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
   const events = []
@@ -53,6 +55,14 @@ export async function GET() {
         turnUsage.cacheRead  += u.cache_read_input_tokens ?? 0
         turnUsage.cacheWrite += u.cache_creation_input_tokens ?? 0
       }
+    } else if (e.type === 'agent.thread_context_compacted') {
+      // Flush any in-progress turn before inserting the compaction marker
+      if (pendingUser)  messages.push(pendingUser)
+      if (pendingAgent) messages.push({ ...pendingAgent, usage: { ...turnUsage } })
+      pendingUser  = null
+      pendingAgent = null
+      resetTurnUsage()
+      messages.push({ role: 'compacted', id: e.id, time: fmt(e.processed_at) })
     } else if (e.type === 'session.thread_status_idle') {
       if (pendingAgent) pendingAgent = { ...pendingAgent, usage: { ...turnUsage } }
       if (pendingUser)  messages.push(pendingUser)

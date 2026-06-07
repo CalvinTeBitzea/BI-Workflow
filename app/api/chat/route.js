@@ -1,13 +1,14 @@
 import Anthropic from '@anthropic-ai/sdk'
 
-const SESSION_ID = 'sesn_01VqZTqWVuuLBdayQE34m1t5'
-const BETA       = 'managed-agents-2026-04-01'
+const DEFAULT_SESSION_ID = 'sesn_01VqZTqWVuuLBdayQE34m1t5'
+const BETA               = 'managed-agents-2026-04-01'
 
 // Allow up to 5-minute responses for long agent runs
 export const maxDuration = 300
 
 export async function POST(request) {
-  const { message } = await request.json()
+  const { message, sessionId } = await request.json()
+  const SESSION_ID = sessionId || DEFAULT_SESSION_ID
 
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
