@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { gsap } from 'gsap'
-import { ArrowUp, Download, Paperclip, Plus } from 'lucide-react'
+import { ArrowUp, Download, Paperclip, Plus, Eye, X } from 'lucide-react'
 import SetupPanels from './SetupPanels'
 
 const AGENT_LABEL        = 'BI Wireframe Agent'
@@ -158,11 +158,112 @@ function downloadBlob(name, content) {
   URL.revokeObjectURL(url)
 }
 
+// ─── Markdown renderer ───────────────────────────────────────────────────────
+
+function renderMarkdown(md) {
+  const esc    = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const inline = (s) => s
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/`([^`]+)`/g, '<code class="bg-ink/10 px-0.5 rounded text-[0.9em]">$1</code>')
+  const proc = (s) => inline(esc(s))
+
+  const lines = md.split('\n')
+  let out = ''
+  let inList = false
+
+  for (const raw of lines) {
+    if (raw.startsWith('### ')) {
+      if (inList) { out += '</ul>'; inList = false }
+      out += `<h3 class="font-grotesk font-bold text-[13px] text-ink mt-5 mb-1">${proc(raw.slice(4))}</h3>`
+    } else if (raw.startsWith('## ')) {
+      if (inList) { out += '</ul>'; inList = false }
+      out += `<h2 class="font-grotesk font-bold text-[15px] text-ink mt-6 mb-2">${proc(raw.slice(3))}</h2>`
+    } else if (raw.startsWith('# ')) {
+      if (inList) { out += '</ul>'; inList = false }
+      out += `<h1 class="font-grotesk font-bold text-[19px] text-ink mt-6 mb-2">${proc(raw.slice(2))}</h1>`
+    } else if (/^[-*] /.test(raw)) {
+      if (!inList) { out += '<ul class="list-disc pl-5 my-2 space-y-1">'; inList = true }
+      out += `<li class="font-mono text-[12px] text-ink leading-relaxed">${proc(raw.slice(2))}</li>`
+    } else if (raw.trim() === '') {
+      if (inList) { out += '</ul>'; inList = false }
+      out += '<div class="h-2"></div>'
+    } else {
+      if (inList) { out += '</ul>'; inList = false }
+      out += `<p class="font-mono text-[12px] text-ink leading-relaxed mb-1">${proc(raw)}</p>`
+    }
+  }
+  if (inList) out += '</ul>'
+  return out
+}
+
+// ─── Preview panel ────────────────────────────────────────────────────────────
+
+function PreviewPanel({ file, onClose }) {
+  const panelRef = useRef(null)
+  const prevName = useRef(null)
+
+  useEffect(() => {
+    if (file && file.name !== prevName.current) {
+      prevName.current = file.name
+      gsap.from(panelRef.current, { x: 24, opacity: 0, duration: 0.3, ease: 'power3.out' })
+    }
+  }, [file])
+
+  if (!file) return null
+
+  const ext    = file.name.split('.').pop().toLowerCase()
+  const isHtml = ext === 'html' || ext === 'htm'
+  const isMd   = ext === 'md'
+
+  return (
+    <div ref={panelRef} className="w-[520px] flex-shrink-0 flex flex-col border-l border-ink/15 bg-offwhite overflow-hidden">
+
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-ink/10 bg-surface/50 flex-shrink-0">
+        <div className="min-w-0">
+          <p className="font-mono text-[8px] tracking-[0.15em] uppercase text-muted leading-none mb-1">Preview</p>
+          <p className="font-mono text-[11px] text-ink truncate">{file.name}</p>
+        </div>
+        <button
+          onClick={onClose}
+          className="flex-shrink-0 ml-3 p-1 text-muted/70 hover:text-red transition-colors rounded"
+        >
+          <X size={13} />
+        </button>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-hidden">
+        {isHtml ? (
+          <iframe
+            key={file.name}
+            srcDoc={file.content ?? ''}
+            className="w-full h-full border-0 bg-white"
+            sandbox="allow-scripts"
+            title={file.name}
+          />
+        ) : (
+          <div className="h-full overflow-y-auto px-5 py-5">
+            {isMd ? (
+              <div dangerouslySetInnerHTML={{ __html: renderMarkdown(file.content ?? '') }} />
+            ) : (
+              <pre className="font-mono text-[11px] text-ink whitespace-pre-wrap leading-relaxed">
+                {file.content ?? ''}
+              </pre>
+            )}
+          </div>
+        )}
+      </div>
+
+    </div>
+  )
+}
+
 // ─── Sidebar ─────────────────────────────────────────────────────────────────
 
 function fmtTok(n) { return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n) }
 
-function Sidebar({ isIdle, agentStatus, hasMessages, lastTurnUsage, activeSessionId, sessions, onSwitchSession, onNewSession, creatingSession }) {
+function Sidebar({ isIdle, agentStatus, hasMessages, lastTurnUsage, activeSessionId, sessions, onSwitchSession, onNewSession, creatingSession, onPreviewFile, previewFileName }) {
   const ref = useRef(null)
   const [sessionFiles, setSessionFiles]   = useState([])
   const [fetching, setFetching]           = useState(false)
@@ -317,21 +418,41 @@ function Sidebar({ isIdle, agentStatus, hasMessages, lastTurnUsage, activeSessio
             <p className="font-mono text-[10px] text-muted leading-relaxed">No output files found.</p>
           ) : (
             <ul className="flex flex-col gap-0.5">
-              {sessionFiles.map((f) => (
-                <li
-                  key={f.name}
-                  className="flex items-center justify-between gap-2 px-2 py-2 rounded-lg hover:bg-surface/70 transition-colors group"
-                >
-                  <span className="font-mono text-[10px] text-ink truncate flex-1">{f.name}</span>
-                  <button
-                    onClick={() => downloadBlob(f.name, f.content)}
-                    className="flex-shrink-0 text-muted/85 group-hover:text-red transition-colors"
-                    title={`Download ${f.name}`}
+              {sessionFiles.map((f) => {
+                const isActive = previewFileName === f.name
+                return (
+                  <li
+                    key={f.name}
+                    className={`flex items-center gap-1.5 px-2 py-2 rounded-lg transition-colors group ${
+                      isActive ? 'bg-ink/8' : 'hover:bg-surface/70'
+                    }`}
                   >
-                    <Download size={11} />
-                  </button>
-                </li>
-              ))}
+                    <button
+                      onClick={() => onPreviewFile?.(f)}
+                      className="flex-1 min-w-0 text-left"
+                      title={`Preview ${f.name}`}
+                    >
+                      <span className={`font-mono text-[10px] truncate block ${isActive ? 'text-red' : 'text-ink'}`}>
+                        {f.name}
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => onPreviewFile?.(f)}
+                      className={`flex-shrink-0 transition-colors ${isActive ? 'text-red' : 'text-muted/60 group-hover:text-ink'}`}
+                      title={`Preview ${f.name}`}
+                    >
+                      <Eye size={10} />
+                    </button>
+                    <button
+                      onClick={() => downloadBlob(f.name, f.content)}
+                      className="flex-shrink-0 text-muted/60 hover:text-red transition-colors"
+                      title={`Download ${f.name}`}
+                    >
+                      <Download size={10} />
+                    </button>
+                  </li>
+                )
+              })}
             </ul>
           )}
         </div>
@@ -403,6 +524,7 @@ export default function ChatInterface() {
   const [activeSessionId, setActiveSessionId] = useState(DEFAULT_SESSION_ID)
   const [sessions, setSessions]             = useState([])
   const [creatingSession, setCreatingSession] = useState(false)
+  const [previewFile, setPreviewFile]       = useState(null)
 
   const bottomRef    = useRef(null)
   const bodyRef      = useRef(null)
@@ -640,6 +762,8 @@ export default function ChatInterface() {
         onSwitchSession={switchSession}
         onNewSession={createNewSession}
         creatingSession={creatingSession}
+        onPreviewFile={setPreviewFile}
+        previewFileName={previewFile?.name}
       />
 
       {/* ── MAIN ─────────────────────────────────────────────────────── */}
@@ -708,6 +832,9 @@ export default function ChatInterface() {
         </div>
 
       </div>
+
+      <PreviewPanel file={previewFile} onClose={() => setPreviewFile(null)} />
+
     </div>
   )
 }
