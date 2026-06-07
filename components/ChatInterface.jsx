@@ -201,6 +201,7 @@ function renderMarkdown(md) {
 function PreviewPanel({ file, onClose }) {
   const panelRef = useRef(null)
   const prevName = useRef(null)
+  const [width, setWidth] = useState(520)
 
   useEffect(() => {
     if (file && file.name !== prevName.current) {
@@ -209,6 +210,32 @@ function PreviewPanel({ file, onClose }) {
     }
   }, [file])
 
+  const onDragStart = useCallback((e) => {
+    e.preventDefault()
+    const initX = e.clientX
+    const initW = panelRef.current?.offsetWidth ?? 520
+
+    document.body.style.cursor     = 'col-resize'
+    document.body.style.userSelect = 'none'
+
+    const onMove = (ev) => {
+      if (!panelRef.current) return
+      const newW = Math.max(260, Math.min(initW + initX - ev.clientX, window.innerWidth * 0.8))
+      panelRef.current.style.width = `${newW}px`
+    }
+
+    const onUp = () => {
+      if (panelRef.current) setWidth(panelRef.current.offsetWidth)
+      document.body.style.cursor     = ''
+      document.body.style.userSelect = ''
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup',   onUp)
+    }
+
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup',   onUp)
+  }, [])
+
   if (!file) return null
 
   const ext    = file.name.split('.').pop().toLowerCase()
@@ -216,45 +243,55 @@ function PreviewPanel({ file, onClose }) {
   const isMd   = ext === 'md'
 
   return (
-    <div ref={panelRef} className="w-[520px] flex-shrink-0 flex flex-col border-l border-ink/15 bg-offwhite overflow-hidden">
+    <div ref={panelRef} style={{ width }} className="flex-shrink-0 flex overflow-hidden">
 
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-ink/10 bg-surface/50 flex-shrink-0">
-        <div className="min-w-0">
-          <p className="font-mono text-[8px] tracking-[0.15em] uppercase text-muted leading-none mb-1">Preview</p>
-          <p className="font-mono text-[11px] text-ink truncate">{file.name}</p>
-        </div>
-        <button
-          onClick={onClose}
-          className="flex-shrink-0 ml-3 p-1 text-muted/70 hover:text-red transition-colors rounded"
-        >
-          <X size={13} />
-        </button>
-      </div>
+      {/* Drag handle */}
+      <div
+        onMouseDown={onDragStart}
+        className="w-1 flex-shrink-0 bg-ink/10 hover:bg-red/50 active:bg-red/70 cursor-col-resize transition-colors duration-100"
+      />
 
-      {/* Content */}
-      <div className="flex-1 overflow-hidden">
-        {isHtml ? (
-          <iframe
-            key={file.name}
-            srcDoc={file.content ?? ''}
-            className="w-full h-full border-0 bg-white"
-            sandbox="allow-scripts"
-            title={file.name}
-          />
-        ) : (
-          <div className="h-full overflow-y-auto px-5 py-5">
-            {isMd ? (
-              <div dangerouslySetInnerHTML={{ __html: renderMarkdown(file.content ?? '') }} />
-            ) : (
-              <pre className="font-mono text-[11px] text-ink whitespace-pre-wrap leading-relaxed">
-                {file.content ?? ''}
-              </pre>
-            )}
+      {/* Panel content */}
+      <div className="flex-1 flex flex-col bg-offwhite overflow-hidden min-w-0">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-ink/10 bg-surface/50 flex-shrink-0">
+          <div className="min-w-0">
+            <p className="font-mono text-[8px] tracking-[0.15em] uppercase text-muted leading-none mb-1">Preview</p>
+            <p className="font-mono text-[11px] text-ink truncate">{file.name}</p>
           </div>
-        )}
-      </div>
+          <button
+            onClick={onClose}
+            className="flex-shrink-0 ml-3 p-1 text-muted/70 hover:text-red transition-colors rounded"
+          >
+            <X size={13} />
+          </button>
+        </div>
 
+        {/* Content */}
+        <div className="flex-1 overflow-hidden">
+          {isHtml ? (
+            <iframe
+              key={file.name}
+              srcDoc={file.content ?? ''}
+              className="w-full h-full border-0 bg-white"
+              sandbox="allow-scripts"
+              title={file.name}
+            />
+          ) : (
+            <div className="h-full overflow-y-auto px-5 py-5">
+              {isMd ? (
+                <div dangerouslySetInnerHTML={{ __html: renderMarkdown(file.content ?? '') }} />
+              ) : (
+                <pre className="font-mono text-[11px] text-ink whitespace-pre-wrap leading-relaxed">
+                  {file.content ?? ''}
+                </pre>
+              )}
+            </div>
+          )}
+        </div>
+
+      </div>
     </div>
   )
 }
