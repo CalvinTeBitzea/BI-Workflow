@@ -307,6 +307,8 @@ function Sidebar({ isIdle, agentStatus, hasMessages, lastTurnUsage, activeSessio
   const [fetched, setFetched]             = useState(false)
   const [sessionUsage, setSessionUsage]   = useState(null)
   const [usageFetched, setUsageFetched]   = useState(false)
+  const [buildingPbip, setBuildingPbip]   = useState(false)
+  const [pbipError, setPbipError]         = useState(null)
 
   useEffect(() => {
     gsap.from(ref.current, { x: -16, opacity: 0, duration: 0.55, ease: 'power3.out' })
@@ -343,6 +345,41 @@ function Sidebar({ isIdle, agentStatus, hasMessages, lastTurnUsage, activeSessio
   useEffect(() => {
     if (isIdle && hasMessages && !fetched) fetchSessionFiles()
   }, [isIdle, hasMessages, fetched, fetchSessionFiles])
+
+  const buildPbip = useCallback(async () => {
+    const specFile  = sessionFiles.find(f => f.name === 'dashboard_spec.json')
+    const modelFile = sessionFiles.find(f => f.name === 'semantic_model.json')
+    if (!specFile || !modelFile) return
+    setBuildingPbip(true)
+    setPbipError(null)
+    try {
+      const buildId = Date.now().toString(36)
+      const res = await fetch(
+        (process.env.NEXT_PUBLIC_BICOHOST_URL ?? '') + '/api/build',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            dashboard_spec: JSON.parse(specFile.content),
+            semantic_model: JSON.parse(modelFile.content),
+            build_id: buildId,
+          }),
+        }
+      )
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error ?? `HTTP ${res.status}`)
+      }
+      const blob = await res.blob()
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href = url; a.download = `pages_${buildId}.zip`; a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      setPbipError(e.message)
+    }
+    setBuildingPbip(false)
+  }, [sessionFiles])
 
   useEffect(() => {
     if (isIdle && hasMessages) fetchUsage()
@@ -454,6 +491,7 @@ function Sidebar({ isIdle, agentStatus, hasMessages, lastTurnUsage, activeSessio
           ) : sessionFiles.length === 0 ? (
             <p className="font-mono text-[10px] text-muted leading-relaxed">No output files found.</p>
           ) : (
+            <>
             <ul className="flex flex-col gap-0.5">
               {sessionFiles.map((f) => {
                 const isActive = previewFileName === f.name
@@ -491,6 +529,25 @@ function Sidebar({ isIdle, agentStatus, hasMessages, lastTurnUsage, activeSessio
                 )
               })}
             </ul>
+            {sessionFiles.some(f => f.name === 'dashboard_spec.json') &&
+             sessionFiles.some(f => f.name === 'semantic_model.json') && (
+              <div className="mt-3 pt-3 border-t border-border/30">
+                <button
+                  onClick={buildPbip}
+                  disabled={buildingPbip}
+                  className="w-full font-mono text-[9px] tracking-wider uppercase px-3 py-2 bg-red text-paper rounded hover:bg-red/80 disabled:opacity-40 transition-colors"
+                >
+                  {buildingPbip ? 'Building…' : 'Build PBIP ↓'}
+                </button>
+                {pbipError && (
+                  <p className="font-mono text-[9px] text-red/80 mt-1.5 leading-relaxed">{pbipError}</p>
+                )}
+                <p className="font-mono text-[9px] text-muted/70 mt-1.5 leading-relaxed">
+                  Extract zip into MyReport.Report/definition/pages/ then reopen Desktop.
+                </p>
+              </div>
+            )}
+            </>
           )}
         </div>
 
