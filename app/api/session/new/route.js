@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 
-const DEFAULT_SESSION_ID = 'sesn_01VqZTqWVuuLBdayQE34m1t5'
+const DEFAULT_SESSION_ID = process.env.REFERENCE_SESSION_ID || 'sesn_01VqZTqWVuuLBdayQE34m1t5'
 const BETA               = 'managed-agents-2026-04-01'
 
 export async function POST(request) {
