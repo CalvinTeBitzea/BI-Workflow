@@ -1,5 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  darkMode: 'class',
   content: [
     './app/**/*.{js,jsx}',
     './components/**/*.{js,jsx}',
@@ -7,12 +8,13 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        paper:  '#E8E4DD',
-        offwhite: '#F5F3EE',
-        ink:    '#111111',
-        red:    '#E63B2E',
-        muted:  '#888888',
-        surface: '#DAD6CE',
+        paper:    'var(--c-paper)',
+        offwhite: 'var(--c-offwhite)',
+        ink:      'var(--c-ink)',
+        red:      'var(--c-red)',
+        muted:    'var(--c-muted)',
+        surface:  'var(--c-surface)',
+        border:   'var(--c-border)',
       },
       fontFamily: {
         grotesk: ['"Space Grotesk"', 'sans-serif'],

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { gsap } from 'gsap'
-import { ArrowUp, Download, Paperclip, Plus, Eye, X } from 'lucide-react'
+import { ArrowUp, Download, Paperclip, Plus, Eye, X, Moon, Sun } from 'lucide-react'
 import SetupPanels from './SetupPanels'
 
 const AGENT_LABEL        = 'BI Wireframe Agent'
@@ -300,7 +300,7 @@ function PreviewPanel({ file, onClose }) {
 
 function fmtTok(n) { return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n) }
 
-function Sidebar({ isIdle, agentStatus, hasMessages, lastTurnUsage, activeSessionId, sessions, onSwitchSession, onNewSession, creatingSession, onPreviewFile, previewFileName, sessionFiles, onFetchFiles, fetching, fetched, buildingPbip, onBuildPbip, pbipError }) {
+function Sidebar({ isIdle, agentStatus, hasMessages, lastTurnUsage, activeSessionId, sessions, onSwitchSession, onNewSession, creatingSession, onPreviewFile, previewFileName, sessionFiles, onFetchFiles, fetching, fetched, buildingPbip, onBuildPbip, pbipError, darkMode, onToggleDark }) {
   const ref = useRef(null)
   const [sessionUsage, setSessionUsage]   = useState(null)
   const [usageFetched, setUsageFetched]   = useState(false)
@@ -341,23 +341,32 @@ function Sidebar({ isIdle, agentStatus, hasMessages, lastTurnUsage, activeSessio
   const ltHit     = ltIn > 0 ? Math.round(ltCacheR / ltIn * 100) : 0
 
   return (
-    <aside ref={ref} className="w-52 flex-shrink-0 flex flex-col bg-offwhite border-r border-ink/10">
+    <aside ref={ref} className="w-72 flex-shrink-0 flex flex-col bg-offwhite border-r border-ink/10">
 
       {/* Agent info */}
       <div className="px-4 pt-5 pb-4 border-b border-ink/10">
-        <div className="flex items-start gap-2.5">
-          <span className="relative flex h-2 w-2 flex-shrink-0 mt-1">
-            {!isIdle && (
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red opacity-75" />
-            )}
-            <span className={`relative inline-flex rounded-full h-2 w-2 ${isIdle ? 'bg-ink/20' : 'bg-red'}`} />
-          </span>
-          <div>
-            <p className="font-mono text-[8px] tracking-[0.18em] uppercase text-muted leading-none mb-1">
-              {isIdle ? 'Ready' : agentStatus === 'thinking' ? 'Thinking…' : 'Responding…'}
-            </p>
-            <p className="font-grotesk font-bold text-[12px] text-ink leading-tight">{AGENT_LABEL}</p>
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-start gap-2.5 min-w-0">
+            <span className="relative flex h-2 w-2 flex-shrink-0 mt-1">
+              {!isIdle && (
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red opacity-75" />
+              )}
+              <span className={`relative inline-flex rounded-full h-2 w-2 ${isIdle ? 'bg-ink/20' : 'bg-red'}`} />
+            </span>
+            <div className="min-w-0">
+              <p className="font-mono text-[8px] tracking-[0.18em] uppercase text-muted leading-none mb-1">
+                {isIdle ? 'Ready' : agentStatus === 'thinking' ? 'Thinking…' : 'Responding…'}
+              </p>
+              <p className="font-grotesk font-bold text-[12px] text-ink leading-tight truncate">{AGENT_LABEL}</p>
+            </div>
           </div>
+          <button
+            onClick={onToggleDark}
+            title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+            className="flex-shrink-0 p-1 text-muted/60 hover:text-ink transition-colors rounded"
+          >
+            {darkMode ? <Sun size={12} /> : <Moon size={12} />}
+          </button>
         </div>
       </div>
 
@@ -603,6 +612,9 @@ export default function ChatInterface() {
   const [fetched, setFetched]               = useState(false)
   const [buildingPbip, setBuildingPbip]     = useState(false)
   const [pbipError, setPbipError]           = useState(null)
+  const [darkMode, setDarkMode]             = useState(() => {
+    try { return localStorage.getItem('bi_dark') === '1' } catch { return false }
+  })
 
   const bottomRef    = useRef(null)
   const bodyRef      = useRef(null)
@@ -681,6 +693,13 @@ export default function ChatInterface() {
     }
     setCreatingSession(false)
   }, [creatingSession])
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode)
+    try { localStorage.setItem('bi_dark', darkMode ? '1' : '0') } catch {}
+  }, [darkMode])
+
+  const toggleDark = useCallback(() => setDarkMode(d => !d), [])
 
   const fetchSessionFiles = useCallback(async () => {
     setFetching(true)
@@ -907,6 +926,8 @@ export default function ChatInterface() {
         buildingPbip={buildingPbip}
         onBuildPbip={buildPbip}
         pbipError={pbipError}
+        darkMode={darkMode}
+        onToggleDark={toggleDark}
       />
 
       {/* ── MAIN ─────────────────────────────────────────────────────── */}

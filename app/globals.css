@@ -4,6 +4,27 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Colour tokens ───────────────────────────────────────────────────────── */
+:root {
+  --c-paper:    #E8E4DD;
+  --c-offwhite: #F5F3EE;
+  --c-ink:      #111111;
+  --c-red:      #E63B2E;
+  --c-muted:    #888888;
+  --c-surface:  #DAD6CE;
+  --c-border:   #C8C4BC;
+}
+
+.dark {
+  --c-paper:    #141210;
+  --c-offwhite: #1C1A18;
+  --c-ink:      #E8E4DD;
+  --c-red:      #E63B2E;
+  --c-muted:    #777777;
+  --c-surface:  #252220;
+  --c-border:   #333030;
+}
+
 /* ── Noise overlay ───────────────────────────────────────────────────────── */
 body::after {
   content: '';
@@ -30,8 +51,8 @@ html,
 body {
   height: 100%;
   overflow: hidden;
-  background-color: #E8E4DD;
-  color: #111111;
+  background-color: var(--c-paper);
+  color: var(--c-ink);
   -webkit-font-smoothing: antialiased;
 }
 
