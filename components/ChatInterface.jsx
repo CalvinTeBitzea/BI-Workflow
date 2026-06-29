@@ -402,7 +402,28 @@ function Sidebar({ isIdle, agentStatus, hasMessages, lastTurnUsage, activeSessio
 
       {/* Build PBIP — always visible, state-driven */}
       <div className="px-4 py-3 border-b border-ink/10">
-        <p className="font-mono text-[8px] tracking-[0.15em] uppercase text-muted mb-2">Build PBIP</p>
+        <div className="flex items-center justify-between mb-2">
+          <p className="font-mono text-[8px] tracking-[0.15em] uppercase text-muted">Build PBIP</p>
+          {!fetched && !fetching && (
+            <button
+              onClick={onFetchFiles}
+              className="font-mono text-[8px] tracking-wider uppercase text-muted/70 hover:text-red transition-colors"
+            >
+              Check
+            </button>
+          )}
+          {fetching && (
+            <span className="font-mono text-[8px] text-muted/60">…</span>
+          )}
+          {fetched && !sessionFiles.some(f => f.name === 'dashboard_spec.json') && (
+            <button
+              onClick={onFetchFiles}
+              className="font-mono text-[8px] tracking-wider uppercase text-muted/70 hover:text-red transition-colors"
+            >
+              Retry
+            </button>
+          )}
+        </div>
         {(() => {
           const hasSpec  = sessionFiles.some(f => f.name === 'dashboard_spec.json')
           const hasModel = sessionFiles.some(f => f.name === 'semantic_model.json')
@@ -420,10 +441,10 @@ function Sidebar({ isIdle, agentStatus, hasMessages, lastTurnUsage, activeSessio
                 {fetching
                   ? 'Checking for output files…'
                   : ready
-                  ? 'Dashboard spec ready — click to download zip'
+                  ? 'Spec ready — click to download zip'
                   : fetched
-                  ? 'Run the agent to generate a dashboard spec'
-                  : 'Files load automatically after agent runs'}
+                  ? 'No spec found — run the agent first'
+                  : 'Click Check to load files from this session'}
               </p>
               {pbipError && (
                 <p className="font-mono text-[8px] text-red/80 mt-1 leading-snug">{pbipError}</p>
